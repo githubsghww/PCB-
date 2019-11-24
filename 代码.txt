@@ -1,0 +1,121 @@
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+from pynq.overlays.base import BaseOverlay
+from pynq.lib.video import *
+import time
+
+base = BaseOverlay("base.bit")
+
+Mode = VideoMode(1280,720,24)
+
+# Mode = VideoMode(640,480,24)
+hdmi_out = base.video.hdmi_out
+hdmi_out.configure(Mode,PIXEL_BGR)
+hdmi_out.start()
+
+videoIn = cv2.VideoCapture(200)
+# frame_in_w = 640
+# frame_in_h = 480
+
+frame_in_w = 1280
+frame_in_h = 720
+videoIn.set(cv2.CAP_PROP_FRAME_WIDTH, frame_in_w);
+videoIn.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_in_h);
+print("capture device is open: " + str(videoIn.isOpened()))
+
+
+ret, frame_vga = videoIn.read()
+cv2.rectangle(frame_vga,(600,160),(780,320),(255,0,0),2)#(x,y)(x1,y1)
+if (ret):
+    outframe = hdmi_out.newframe()
+    outframe[:] = frame_vga
+    hdmi_out.writeframe(outframe)
+else:
+    raise RuntimeError("Error while reading from camera.")
+    
+    
+i = 0
+
+while(i<10):
+    i += 1
+    ret, frame_vga = videoIn.read()
+    print(frame_vga.shape)
+    if (ret):
+        cv2.rectangle(frame_vga,(600,160),(780,320),(0,0,255),2)#(x,y)(x1,y1)
+#         cv2.rectangle(frame_vga,(490,690),(310,490),(0,255,0),2)        
+        outframe = hdmi_out.newframe()
+        outframe[:,:,0] = frame_vga[:,:,2]
+        outframe[:,:,1] = frame_vga[:,:,1]
+        outframe[:,:,2] = frame_vga[:,:,0]
+        hdmi_out.writeframe(outframe)
+    else:
+        raise RuntimeError("Error while reading from camera.")
+        
+frame1 = cv2.cvtColor(frame_vga[163:317,603:777], cv2.COLOR_BGR2GRAY)
+cv2.imwrite('kuang2.jpg',frame1)   
+
+
+ret, frame_vga = videoIn.read()
+cv2.rectangle(frame_vga,(600,160),(780,320),(255,0,0),2)#(x,y)(x1,y1)
+if (ret):
+    outframe = hdmi_out.newframe()
+    outframe[:] = frame_vga
+    hdmi_out.writeframe(outframe)
+else:
+    raise RuntimeError("Error while reading from camera.")
+    
+
+frame1 = cv2.imread('kuang2.jpg',0)
+
+_, binary0 = cv2.threshold(frame1, 185, 255, cv2.THRESH_BINARY)
+_, binary1 = cv2.threshold(frame1, 185, 255, cv2.THRESH_BINARY)
+
+kernel = np.ones((3,3), np.uint8)
+cv2.imwrite('ez_00.jpg',binary0)
+cv2.imwrite('ez_01.jpg',binary1)
+dst00=cv2.morphologyEx(binary0, cv2.MORPH_OPEN,kernel)
+dst01=cv2.morphologyEx(binary1, cv2.MORPH_OPEN,kernel)
+
+cv2.imwrite('kai_00.jpg', dst00)
+cv2.imwrite('kai_01.jpg', dst01)
+
+_, contours0, hierarchy = cv2.findContours(dst00, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+_, contours1, hierarchy = cv2.findContours(binary0, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+print('Open result:')
+print(np.size(contours0))
+print('Binary result:')
+print(np.size(contours1))
+
+erzhi = cv2.imread('ez_00.jpg')
+
+kai = cv2.imread('kai_00.jpg')
+print(erzhi.shape)
+
+j = 0
+while(j<30):
+    j += 1
+    ret, frame_vga = videoIn.read()
+#     print(frame_vga.shape)
+    if (ret):
+
+        if np.size(contours0) != 44:
+            cv2.rectangle(frame_vga,(600,160),(780,320),(255,0,0),2)    
+        else:
+            cv2.rectangle(frame_vga,(600,160),(780,320),(0,255,0),2)
+        outframe = hdmi_out.newframe()
+        outframe[:,:,0] = frame_vga[:,:,2]
+        outframe[:,:,1] = frame_vga[:,:,1]
+        outframe[:,:,2] = frame_vga[:,:,0]
+        print(outframe[0:154,160:334,:].shape)
+        outframe[170:324,110:284,:] = erzhi[:,:,:]
+        outframe[170:324,300:474,:] = kai[:,:,:]
+        hdmi_out.writeframe(outframe)
+    else:
+        raise RuntimeError("Error while reading from camera.")
+        
+hdmi_out.stop()
+del hdmi_out
+videoIn.release()
